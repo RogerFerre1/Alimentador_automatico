@@ -47,7 +47,7 @@ void loop(){
     Serial.println("Escuro");
   }
 
-  delay(1000);
+  delay(500);
 }
 
 void moverServos(int angulo){
