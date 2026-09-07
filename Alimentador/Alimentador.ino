@@ -21,8 +21,14 @@ const int sensorLaser = 14;
 int anguloFechado = 0;
 int anguloAberto = 180;
 
-int estadoAnterior;
-int estadoAtual;
+int estadoAnteriorLDR;
+int estadoAtualLDR;
+int estadoAnteriorIR;
+int estadoAtualIR;
+
+unsigned long tempoInicio;
+bool alimentando = false;
+unsigned long tempoAlimentacao = 2000;
 
 String device_name = "Petsflow";
 
@@ -62,7 +68,8 @@ void setup(){
 
   // Sensor LDR
 
-  estadoAnterior = digitalRead(sensorLaser);
+  estadoAnteriorLDR = digitalRead(sensorLaser);
+  estadoAnteriorIR = digitalRead(sensorIR);
 }
 
 void loop(){
@@ -79,25 +86,34 @@ void loop(){
 
   // Sensor IR
 
-  int estadoSensor = digitalRead(sensorIR);
+  estadoAtualIR = digitalRead(sensorIR);
 
-  if(estadoSensor == HIGH){
+  // Libera a ração quando o animal acabou de chegar
+  if(estadoAnteriorIR == HIGH && estadoAtualIR == LOW && !alimentando){
+    alimentando = true;
+    tempoInicio = millis();
+
     moverServos(anguloAberto);
-  } else{
+  } 
+
+  // Verifica se passaram 10 segundos
+  
+  if(alimentando && (millis() - tempoInicio >= tempoAlimentacao)){ 
     moverServos(anguloFechado);
+    alimentando = false;
   }
 
-  delay(500);
+  estadoAnteriorIR = estadoAtualIR;
   
   // Sensor LDR
 
-  estadoAtual = digitalRead(sensorLaser);
+  estadoAtualLDR = digitalRead(sensorLaser);
   
-  if(estadoAnterior == HIGH && estadoAtual == LOW){
+  if(estadoAnteriorLDR == HIGH && estadoAtualLDR == LOW){
     Serial.println("Nível de ração baixa, favor reabastecer o reservatório");
     SerialBT.println("Nível de ração baixa, favor reabastecer o reservatório");
   }
-  estadoAnterior = estadoAtual;
+  estadoAnteriorLDR = estadoAtualLDR;
 
   delay(500);
 }
