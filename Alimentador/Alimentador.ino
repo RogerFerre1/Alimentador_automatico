@@ -1,11 +1,15 @@
 // Bibliotecas
 
+#include <Arduino.h>
 #include <ESP32Servo.h>
+#include "BluetoothSerial.h"
 
 // Pinos/Variáveis
 
 Servo servo1;
 Servo servo2; 
+
+BluetoothSerial SerialBT;
 
 const int servo1_PIN = 13;
 const int servo2_PIN = 12;
@@ -15,10 +19,29 @@ const int sensorLaser = 14;
 int anguloFechado = 0;
 int anguloAberto = 180;
 
+int estadoAnterior;
+int estadoAtual;
+
+String device_name = "Petsflow";
+
+// Checando se o Bluetooth está disponível
+#if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
+#error Bluetooth is not enabled! Please run `make menuconfig` to and enable it
+#endif
+
+// Checando Perfil da Porta Serial
+#if !defined(CONFIG_BT_SPP_ENABLED)
+#error Serial Port Profile for Bluetooth is not available or not enabled. It is only available for the ESP32 chip.
+#endif
+
 void setup(){
+  Serial.begin(115200);
+  SerialBT.begin(device_name);
+  //SerialBT.deleteAllBondedDevices(); // Tire do comentário para deletar dispositivos pareados. Precisa ser chamado depois do begin 
+  Serial.printf("O dispositivo com nome \"%s\" foi iniciado. \n Agora você pode parear com o Bluetooth!\n", device_name.c_str());
+
   pinMode(sensorIR, INPUT);
   pinMode(sensorLaser, INPUT);
-  Serial.begin(9600);
   
   servo1.attach(servo1_PIN);
   servo2.attach(servo2_PIN);
@@ -26,9 +49,20 @@ void setup(){
   moverServos(anguloFechado);
 
   delay(500);
+
+  estadoAnterior = digitalRead(sensorLaser);
 }
 
 void loop(){
+  if(Serial.available()){
+    SerialBT.write(Serial.read());
+  }
+  if(SerialBT.available()){
+    Serial.write(SerialBT.read());
+  }
+  delay(20);
+
+  
   int estadoSensor = digitalRead(sensorIR);
 
   if(estadoSensor == HIGH){
@@ -39,13 +73,13 @@ void loop(){
 
   delay(500);
 
-  int estadoLDR = digitalRead(sensorLaser);
+  estadoAtual = digitalRead(sensorLaser);
   
-  if(estadoLDR == LOW){
-    Serial.println("Claro");
-  } else {
-    Serial.println("Escuro");
+  if(estadoAnterior == HIGH && estadoAtual == LOW){
+    Serial.println("Nível de ração baixa, favor reabastecer o reservatório");
+    SerialBT.println("Nível de ração baixa, favor reabastecer o reservatório");
   }
+  estadoAnterior = estadoAtual;
 
   delay(500);
 }
