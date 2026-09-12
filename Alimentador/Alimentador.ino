@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 #include "BluetoothSerial.h"
+#include <Wire.h>
+#include <RTClib.h>
 
 // Instância dos componentes
 
@@ -10,6 +12,8 @@ Servo servo1;
 Servo servo2; 
 
 BluetoothSerial SerialBT;
+
+RTC_DS3231 rtc;
 
 // Pinos/Variáveis
 
@@ -32,6 +36,10 @@ unsigned long tempoAlimentacao = 2000;
 
 String device_name = "Petsflow";
 
+int horaProgramada = 10;
+int minutoProgramado = 40;
+int ultimoMinuto = -1;
+
 // Checando se o Bluetooth está disponível
 
 #if !defined(CONFIG_BT_ENABLED) || !defined(CONFIG_BLUEDROID_ENABLED)
@@ -45,9 +53,22 @@ String device_name = "Petsflow";
 #endif
 
 void setup(){
+  Serial.begin(115200);
+  // RTC
+  Wire.begin(22, 23);
+
+  if(!rtc.begin()){
+    Serial.println("DS3231 não encontrado!");
+    while(1);
+  }
+
+  Serial.println("DS3231 encontrado!");
+
+  // Sincroniza a hora do RTC com o PC, precisa comentar após a primeira vez para ele não sobrescrever o horário
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)) + TimeSpan(0, 0, 0, 26));
+
   // Bluetooth
 
-  Serial.begin(115200);
   SerialBT.begin(device_name);
   //SerialBT.deleteAllBondedDevices(); // Tire do comentário para deletar dispositivos pareados. Precisa ser chamado depois do begin 
   Serial.printf("O dispositivo com nome \"%s\" foi iniciado. \n Agora você pode parear com o Bluetooth!\n", device_name.c_str());
@@ -73,6 +94,9 @@ void setup(){
 }
 
 void loop(){
+  // RTC
+  DateTime agora = rtc.now();
+
 
   // Bluetooth
 
@@ -116,6 +140,19 @@ void loop(){
   estadoAnteriorLDR = estadoAtualLDR;
 
   delay(500);
+
+  // RTC
+
+  if((horaProgramada == agora.hour()) 
+    && (minutoProgramado == agora.minute())
+    && (agora.minute() != ultimoMinuto)){
+    Serial.print(agora.hour());
+    Serial.print(":");
+    Serial.println(agora.minute());
+    Serial.println("A hora está certa!!!");
+
+    ultimoMinuto = agora.minute();
+  }
 }
 
 // Servo motores
