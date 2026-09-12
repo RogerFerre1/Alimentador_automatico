@@ -52,14 +52,15 @@ unsigned long tempoAlimentacao = 2000;
 // 5 - Bluetooth
 
 String device_name = "Petsflow";
+String comandoBluetooth = "";
 
 // 6 - Temporizador
 
 int horaProgramada1 = 8;
 int minutoProgramado1 = 0;
 
-int horaProgramada2 = 14;
-int minutoProgramado2 = 51;
+int horaProgramada2 = 15;
+int minutoProgramado2 = 16;
 
 int horaProgramada3 = 18;
 int minutoProgramado3 = 0;
@@ -87,7 +88,9 @@ void iniciarAlimentacao();
 void verificarAlimentacao();
 
 void verificarHorario();
-//void verificarHorarioProgramado(int hora, int minuto, bool &executado);
+void verificarHorarioProgramado(DateTime agora, int hora, int minuto, bool &executado);
+
+bool configurarHorario(String comando, int &hora, int &minuto);
 
 // Setup 
 
@@ -136,7 +139,7 @@ void iniciarRTC(){
 
   // Usar apenas uma vez para sincronizar o horário RTC com o PC
   // Comentar após a primeira vez compilado para não sobrescrever
-  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)) + TimeSpan(0, 0, 0, 26)); 
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)) + TimeSpan(0, 0, 0, 26)); 
 }
 
 // Inicialização do Bluetooth
@@ -197,7 +200,89 @@ void verificarBluetooth(){
 
   // Bluetooth -> Serial
   if(SerialBT.available()){
-    Serial.write(SerialBT.read());
+    
+    char caractere = SerialBT.read();
+
+    Serial.write(caractere);
+
+    if(caractere == '\n'){
+
+      if(comandoBluetooth.startsWith("SET1")){
+        String horario = comandoBluetooth.substring(5);
+
+        int separador = horario.indexOf(":");
+
+        String hora = horario.substring(0, separador);
+        String minuto = horario.substring(separador + 1);
+
+        int horaNumero = hora.toInt();
+        int minutoNumero = minuto.toInt();
+
+        if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59) {
+          
+          horaProgramada1 = horaNumero;
+          minutoProgramado1 = minutoNumero;
+        
+          Serial.println("Horario 1 atualizado");
+        } else{
+          Serial.println("Horario invalido");
+          SerialBT.println("Horario invalido");
+        }
+
+      } else if(comandoBluetooth.startsWith("SET2")){
+          String horario = comandoBluetooth.substring(5);
+
+          int separador = horario.indexOf(":");
+
+          String hora = horario.substring(0, separador);
+          String minuto = horario.substring(separador + 1);
+
+          int horaNumero = hora.toInt();
+          int minutoNumero = minuto.toInt();
+
+          if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59){
+            
+            horaProgramada2 = horaNumero;
+            minutoProgramado2 = minutoNumero;
+
+            Serial.println("Horario 2 atualizado");
+          } else{
+            Serial.println("Horario invalido");
+            SerialBT.println("Horario invalido");
+          }
+        } else if(comandoBluetooth.startsWith("SET3")){
+          String horario = comandoBluetooth.substring(5);
+
+          int separador = horario.indexOf(":");
+
+          String hora = horario.substring(0, separador);
+          String minuto = horario.substring(separador + 1);
+
+          int horaNumero = hora.toInt();
+          int minutoNumero = minuto.toInt();
+
+          if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59){
+            
+            horaProgramada3 = horaNumero;
+            minutoProgramado3 = minutoNumero;
+
+            Serial.println("Horario 3 atualizado");
+          } else{
+              Serial.println("Horario invalido");
+              SerialBT.println("Horario invalido");
+            }
+        }
+        else{
+          Serial.println("Comando errado");
+      }
+
+      Serial.println("Comando recebido:");
+      Serial.println(comandoBluetooth);
+
+      comandoBluetooth = "";
+    } else{
+      comandoBluetooth += caractere;
+    }
   }
 
   delay(20);
@@ -264,6 +349,16 @@ void verificarHorario(){
   
   DateTime agora = rtc.now();
 
+  // Horário 1
+  verificarHorarioProgramado(agora, horaProgramada1, minutoProgramado1, horario1Executado);
+
+  // Horário 2
+  verificarHorarioProgramado(agora, horaProgramada2, minutoProgramado2, horario2Executado);
+
+  // Horário 3
+  verificarHorarioProgramado(agora, horaProgramada3, minutoProgramado3, horario3Executado);
+
+ // Reset diário
   if(agora.day() != ultimoDia){
 
     horario1Executado = false;
@@ -272,40 +367,40 @@ void verificarHorario(){
 
     ultimoDia = agora.day();
   }
+}
 
-  // Horário 1
-  if((horaProgramada1 == agora.hour()) && (minutoProgramado1 == agora.minute()) && !horario1Executado){
-    
+
+void verificarHorarioProgramado(DateTime agora, int hora, int minuto, bool &executado){
+
+  if((hora == agora.hour()) && (minuto == agora.minute()) && !executado){
+
     iniciarAlimentacao();
 
-    horario1Executado = true;
-  }
-
-  // Horário 2
-  if((horaProgramada2 == agora.hour()) && (minutoProgramado2 == agora.minute()) && !horario2Executado){
-    
-    iniciarAlimentacao();
-
-    horario2Executado = true;
-  }
-
-  // Horário 3
-  if((horaProgramada3 == agora.hour()) && (minutoProgramado3 == agora.minute()) && !horario3Executado){
-    iniciarAlimentacao();
-
-    horario3Executado = true;
+    executado = true;
   }
 }
 
-/*
-void verificarHorarioProgramado(int hora, int minuto, bool &executado){
+bool configurarHorario(String comando, int &hora, int &minuto){
+  String horario = comando.substring(5);
 
-  DateTime agora = rtc.now();
+  int separador = horario.indexOf(":");
 
-  if(hora)
+  String horaTexto = horario.substring(0, separador);
+  String minutoTexto = horario.substring(separador + 1);
+
+  int horaNumero = horaTexto.toInt();
+  int minutoNumero = minutoTexto.toInt();
+
+  if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59){
+
+    hora = horaNumero;
+    minuto = minutoNumero;
+
+    return true;
+  }
+
+  return false;
 }
-*/
-
 
 
 
