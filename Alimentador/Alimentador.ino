@@ -56,11 +56,11 @@ String comandoBluetooth = "";
 
 // 6 - Temporizador
 
-int horaProgramada1 = 8;
+int horaProgramada1 = 6;
 int minutoProgramado1 = 0;
 
-int horaProgramada2 = 15;
-int minutoProgramado2 = 16;
+int horaProgramada2 = 12;
+int minutoProgramado2 = 0;
 
 int horaProgramada3 = 18;
 int minutoProgramado3 = 0;
@@ -70,6 +70,14 @@ bool horario2Executado = false;
 bool horario3Executado = false;
 
 int ultimoDia = -1;
+
+int proximaHora;
+int proximoMinuto;
+bool proximaAlimentacaoAmanha;
+
+// 7 - Status
+
+void imprimirStatus();
 
 // Declaração das Funções
 
@@ -86,11 +94,12 @@ void verificarNivelRacao();
 
 void iniciarAlimentacao();
 void verificarAlimentacao();
+bool solicitarAlimentacao();
 
 void verificarHorario();
 void verificarHorarioProgramado(DateTime agora, int hora, int minuto, bool &executado);
-
 bool configurarHorario(String comando, int &hora, int &minuto);
+void imprimirHorario(int hora, int minuto);
 
 // Setup 
 
@@ -208,21 +217,8 @@ void verificarBluetooth(){
     if(caractere == '\n'){
 
       if(comandoBluetooth.startsWith("SET1")){
-        String horario = comandoBluetooth.substring(5);
-
-        int separador = horario.indexOf(":");
-
-        String hora = horario.substring(0, separador);
-        String minuto = horario.substring(separador + 1);
-
-        int horaNumero = hora.toInt();
-        int minutoNumero = minuto.toInt();
-
-        if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59) {
-          
-          horaProgramada1 = horaNumero;
-          minutoProgramado1 = minutoNumero;
         
+        if(configurarHorario(comandoBluetooth, horaProgramada1, minutoProgramado1)){
           Serial.println("Horario 1 atualizado");
         } else{
           Serial.println("Horario invalido");
@@ -230,57 +226,47 @@ void verificarBluetooth(){
         }
 
       } else if(comandoBluetooth.startsWith("SET2")){
-          String horario = comandoBluetooth.substring(5);
-
-          int separador = horario.indexOf(":");
-
-          String hora = horario.substring(0, separador);
-          String minuto = horario.substring(separador + 1);
-
-          int horaNumero = hora.toInt();
-          int minutoNumero = minuto.toInt();
-
-          if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59){
+          if(configurarHorario(comandoBluetooth, horaProgramada2, minutoProgramado2)){
+              Serial.println("Horario 2 atualizado");
             
-            horaProgramada2 = horaNumero;
-            minutoProgramado2 = minutoNumero;
-
-            Serial.println("Horario 2 atualizado");
-          } else{
-            Serial.println("Horario invalido");
-            SerialBT.println("Horario invalido");
-          }
+            } else{
+                Serial.println("Horario invalido");
+                SerialBT.println("Horario invalido");
+              }
         } else if(comandoBluetooth.startsWith("SET3")){
-          String horario = comandoBluetooth.substring(5);
+              if(configurarHorario(comandoBluetooth, horaProgramada3, minutoProgramado3)){
+                Serial.println("Horario 3 atualizado");
+              }else{
+                Serial.println("Horario invalido");
+                SerialBT.println("Horario invalido");
+              }
+          } else if(comandoBluetooth.startsWith("GET")){
 
-          int separador = horario.indexOf(":");
+                SerialBT.print("Horario 1: ");
+                imprimirHorario(horaProgramada1, minutoProgramado1);
 
-          String hora = horario.substring(0, separador);
-          String minuto = horario.substring(separador + 1);
+                SerialBT.print("Horario 2: ");
+                imprimirHorario(horaProgramada2, minutoProgramado2);
 
-          int horaNumero = hora.toInt();
-          int minutoNumero = minuto.toInt();
+                SerialBT.print("Horario 3: ");
+                imprimirHorario(horaProgramada3, minutoProgramado3);
+              } else if(comandoBluetooth.startsWith("FEED")){
+                    if(solicitarAlimentacao()){
+                      SerialBT.println("Alimentacao iniciada");
+                    } else{
+                      SerialBT.println("Alimentador ocupado");
+                    }
+                } else if(comandoBluetooth.startsWith("STATUS")){
+                    imprimirStatus();
+                  }else{
+                  Serial.println("Comando errado");
+                }
 
-          if(horaNumero >= 0 && horaNumero <= 23 && minutoNumero >= 0 && minutoNumero <= 59){
-            
-            horaProgramada3 = horaNumero;
-            minutoProgramado3 = minutoNumero;
+              Serial.println("Comando recebido:");
+              Serial.println(comandoBluetooth);
 
-            Serial.println("Horario 3 atualizado");
-          } else{
-              Serial.println("Horario invalido");
-              SerialBT.println("Horario invalido");
-            }
-        }
-        else{
-          Serial.println("Comando errado");
-      }
-
-      Serial.println("Comando recebido:");
-      Serial.println(comandoBluetooth);
-
-      comandoBluetooth = "";
-    } else{
+              comandoBluetooth = "";
+            } else{
       comandoBluetooth += caractere;
     }
   }
@@ -295,7 +281,7 @@ void verificarIR(){
   estadoAtualIR = digitalRead(sensorIR);
 
   if((estadoAnteriorIR == HIGH) && (estadoAtualIR == LOW) && !alimentando){
-    iniciarAlimentacao();
+    solicitarAlimentacao();
   }
 
   estadoAnteriorIR = estadoAtualIR;
@@ -313,6 +299,18 @@ void verificarNivelRacao(){
   }
 
   estadoAnteriorLDR = estadoAtualLDR;
+}
+
+// Solicitar alimentação
+
+bool solicitarAlimentacao(){
+  if(!alimentando){
+    iniciarAlimentacao();
+
+    return true;
+  }
+
+  return false;
 }
 
 // Iniciar alimentação
@@ -349,16 +347,7 @@ void verificarHorario(){
   
   DateTime agora = rtc.now();
 
-  // Horário 1
-  verificarHorarioProgramado(agora, horaProgramada1, minutoProgramado1, horario1Executado);
-
-  // Horário 2
-  verificarHorarioProgramado(agora, horaProgramada2, minutoProgramado2, horario2Executado);
-
-  // Horário 3
-  verificarHorarioProgramado(agora, horaProgramada3, minutoProgramado3, horario3Executado);
-
- // Reset diário
+  // Reset diário
   if(agora.day() != ultimoDia){
 
     horario1Executado = false;
@@ -367,6 +356,15 @@ void verificarHorario(){
 
     ultimoDia = agora.day();
   }
+
+  // Horário 1
+  verificarHorarioProgramado(agora, horaProgramada1, minutoProgramado1, horario1Executado);
+
+  // Horário 2
+  verificarHorarioProgramado(agora, horaProgramada2, minutoProgramado2, horario2Executado);
+
+  // Horário 3
+  verificarHorarioProgramado(agora, horaProgramada3, minutoProgramado3, horario3Executado);
 }
 
 
@@ -374,9 +372,9 @@ void verificarHorarioProgramado(DateTime agora, int hora, int minuto, bool &exec
 
   if((hora == agora.hour()) && (minuto == agora.minute()) && !executado){
 
-    iniciarAlimentacao();
-
-    executado = true;
+    if(solicitarAlimentacao()){
+      executado = true;
+    }   
   }
 }
 
@@ -402,11 +400,170 @@ bool configurarHorario(String comando, int &hora, int &minuto){
   return false;
 }
 
+void imprimirHorario(int hora, int minuto){
+  if(hora < 10){
+    SerialBT.print("0");
+  }
 
+  SerialBT.print(hora);
+  SerialBT.print(":");
 
+  if(minuto < 10){
+    SerialBT.print("0");
+  }
 
+  SerialBT.println(minuto);
+}
 
+void imprimirStatus(){
+  DateTime agora = rtc.now();
 
+  int minutosAgora = agora.hour() * 60 + agora.minute();
+
+  int minutosHorario1 = horaProgramada1 * 60 + minutoProgramado1;
+  int minutosHorario2 = horaProgramada2 * 60 + minutoProgramado2;
+  int minutosHorario3 = horaProgramada3 * 60 + minutoProgramado3;
+
+  proximaHora = 23;
+  proximoMinuto = 59;
+  proximaAlimentacaoAmanha = false;
+
+  if(minutosHorario1 > minutosAgora){
+    proximaHora = horaProgramada1;
+    proximoMinuto = minutoProgramado1;
+  }
+
+  if(minutosHorario2 > minutosAgora && minutosHorario2 < (proximaHora * 60 + proximoMinuto)){
+    proximaHora = horaProgramada2;
+    proximoMinuto = minutoProgramado2;
+  }
+
+  if(minutosHorario3 > minutosAgora && minutosHorario3 < (proximaHora * 60 + proximoMinuto)){
+    proximaHora = horaProgramada3;
+    proximoMinuto = minutoProgramado3;
+  }
+
+  if(proximaHora == 23 && proximoMinuto == 59){
+    proximaAlimentacaoAmanha = true;
+
+    proximaHora = horaProgramada1;
+    proximoMinuto = minutoProgramado1;
+
+    if(minutosHorario2 < minutosHorario1 && minutosHorario2 < minutosHorario3){
+      proximaHora = horaProgramada2;
+      proximoMinuto = minutoProgramado2;
+    }
+
+    if(minutosHorario3 < minutosHorario1 && minutosHorario3 < minutosHorario2){
+      proximaHora = horaProgramada3;
+      proximoMinuto = minutoProgramado3;
+    }
+  }
+
+  // Status
+
+  SerialBT.println("          Status");
+  SerialBT.println();
+
+  // Status Hora atual
+
+  SerialBT.print("Hora atual: ");
+
+  if(agora.hour() < 10){
+    SerialBT.print("0");
+  }
+
+  SerialBT.print(agora.hour());
+  SerialBT.print(":");
+
+  if(agora.minute() < 10){
+    SerialBT.print("0");
+  }
+
+  SerialBT.print(agora.minute());
+  SerialBT.print(":");
+
+  if(agora.second() < 10){
+    SerialBT.print("0");
+  }
+
+  SerialBT.println(agora.second());
+
+  SerialBT.println();
+  
+  // Status Alimentação
+
+  if(alimentando){
+    SerialBT.println("Alimentação: Alimentando");
+  } else{
+    SerialBT.println("Alimentação: Disponível");
+  }
+
+  // Status Nível de ração
+
+  if(estadoAtualLDR == HIGH){
+    SerialBT.println("Nível: OK\n");
+  } else{
+    SerialBT.println("Nível: Baixo\n");
+  }
+
+  // Status Horários Programados
+  SerialBT.print("Horario 1: ");
+  imprimirHorario(horaProgramada1, minutoProgramado1);
+  if(horario1Executado){
+    SerialBT.println("[Executado]");
+  } else{
+    SerialBT.println("[Aguardando]");
+  }
+
+  SerialBT.print("Horario 2: ");
+  imprimirHorario(horaProgramada2, minutoProgramado2);
+  if(horario2Executado){
+    SerialBT.println("[Executado]");
+  } else{
+    SerialBT.println("[Aguardando]");
+  }
+
+  SerialBT.print("Horario 3: ");
+  imprimirHorario(horaProgramada3, minutoProgramado3);
+  if(horario3Executado){
+    SerialBT.println("[Executado]");
+  } else{
+    SerialBT.println("[Aguardando]");
+  }
+
+  SerialBT.print("Proxima alimentação: ");
+
+  if(proximaAlimentacaoAmanha){
+    
+    if(proximaHora < 10){
+      SerialBT.print("0");
+    }
+
+    SerialBT.print(proximaHora);
+    SerialBT.print(":");
+
+    if(proximoMinuto < 10){
+      SerialBT.print("0");
+    }
+
+    SerialBT.println(proximoMinuto);
+  } else{
+    
+      if(proximaHora < 10){
+        SerialBT.print("0");
+      }
+
+      SerialBT.print(proximaHora);
+      SerialBT.print(":");
+
+      if(proximoMinuto < 10){
+        SerialBT.print("0");
+      }
+
+      SerialBT.println(proximoMinuto);
+  }
+}
 
 
 
